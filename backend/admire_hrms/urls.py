@@ -1,0 +1,28 @@
+"""
+URL configuration for admire_hrms project.
+"""
+from django.contrib import admin
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    
+    # API URLs
+    path('api/v1/auth/', include('apps.authentication.urls')),
+    path('api/v1/employees/', include('apps.employees.urls')),
+    path('api/v1/attendance/', include('apps.attendance.urls')),
+    path('api/v1/leave/', include('apps.leave_management.urls')),
+    path('api/v1/payroll/', include('apps.payroll.urls')),
+    
+    # API Documentation
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+]
+
+# Serve media files in development
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

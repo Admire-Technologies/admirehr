@@ -1,31 +1,39 @@
-# AdmireHR
+# Admire HRMS
 
-Django backend with React frontend application.
+A comprehensive Human Resource Management System built with Next.js frontend and Django REST Framework backend.
 
-## Setup
+## Project Structure
 
-### Backend (Django)
-
-```bash
-cd backend
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py runserver
+```
+admire-hrms/
+├── frontend/          # Next.js frontend application
+├── backend/           # Django REST Framework backend
+├── docker-compose.yml # Development environment setup
+└── README.md         # Project documentation
 ```
 
-Backend runs on: http://localhost:8000
+## Quick Start
 
-### Frontend (React)
+1. Clone the repository
+2. Run `docker-compose up -d` to start PostgreSQL and Redis
+3. Set up backend: `cd backend && pip install -r requirements.txt`
+4. Set up frontend: `cd frontend && npm install`
+5. Start development servers
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+## Technology Stack
 
-Frontend runs on: http://localhost:5173
+**Frontend:**
+- Next.js 14+ with TypeScript
+- React 18+
+- Tailwind CSS
+- Metronic UI Theme
 
-## API Endpoints
+**Backend:**
+- Django 4.2+ with Django REST Framework
+- PostgreSQL database
+- Redis for caching and WebSocket support
+- Celery for background tasks
 
-- Health Check: http://localhost:8000/api/health/
-- Admin Panel: http://localhost:8000/admin/
+## Development Environment
+
+The project uses Docker for development dependencies (PostgreSQL and Redis).
