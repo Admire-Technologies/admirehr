@@ -1,0 +1,591 @@
+openapi: 3.0.3
+info:
+  title: Admire HRMS API
+  version: 1.0.0
+  description: Human Resource Management System API
+paths:
+  /api/v1/auth/change-password/:
+    post:
+      operationId: v1_auth_change_password_create
+      description: Change user password.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/login/:
+    post:
+      operationId: v1_auth_login_create
+      description: User login view that returns JWT tokens.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/logout/:
+    post:
+      operationId: v1_auth_logout_create
+      description: User logout view that blacklists the refresh token.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/profile/:
+    get:
+      operationId: v1_auth_profile_retrieve
+      description: Get current user profile information.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: v1_auth_profile_update
+      description: Get current user profile information.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/refresh/:
+    post:
+      operationId: v1_auth_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/v1/companies/current/:
+    get:
+      operationId: v1_companies_current_retrieve
+      description: Get current company details
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+          description: ''
+        '403':
+          description: Permission denied
+    put:
+      operationId: v1_companies_current_update
+      description: Update current company details
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Company'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Company'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Company'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+          description: ''
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied
+    patch:
+      operationId: v1_companies_current_partial_update
+      description: Partially update current company details.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCompany'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCompany'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCompany'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+          description: ''
+  /api/v1/companies/register/:
+    post:
+      operationId: v1_companies_register_create
+      description: Register a new company with admin user
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyRegistration'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CompanyRegistration'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CompanyRegistration'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          description: Company registered successfully
+        '400':
+          description: Validation error
+  /api/v1/companies/settings/:
+    get:
+      operationId: v1_companies_settings_retrieve
+      description: Get current company settings
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanySettings'
+          description: ''
+        '403':
+          description: Permission denied
+    put:
+      operationId: v1_companies_settings_update
+      description: Update current company settings
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanySettings'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CompanySettings'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CompanySettings'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanySettings'
+          description: ''
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied
+    patch:
+      operationId: v1_companies_settings_partial_update
+      description: Partially update current company settings.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCompanySettings'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCompanySettings'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCompanySettings'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanySettings'
+          description: ''
+  /api/v1/dashboard/stats/:
+    get:
+      operationId: v1_dashboard_stats_retrieve
+      description: Get dashboard statistics for the current user's company.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/health/:
+    get:
+      operationId: v1_health_retrieve
+      description: Health check endpoint for the API.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+components:
+  schemas:
+    Company:
+      type: object
+      description: Serializer for Company model.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        code:
+          type: string
+          maxLength: 50
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        phone:
+          type: string
+          maxLength: 20
+        address:
+          type: string
+        website:
+          type: string
+          format: uri
+          maxLength: 200
+        logo:
+          type: string
+          format: uri
+          nullable: true
+        timezone:
+          type: string
+          maxLength: 50
+        date_format:
+          type: string
+          maxLength: 20
+        currency:
+          type: string
+          maxLength: 3
+        working_hours_per_day:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,2})?$
+        working_days_per_week:
+          type: integer
+        annual_leave_days:
+          type: integer
+        sick_leave_days:
+          type: integer
+        grace_period_minutes:
+          type: integer
+        overtime_threshold_hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,2})?$
+        subscription_plan:
+          type: string
+          maxLength: 50
+        max_employees:
+          type: integer
+        is_active:
+          type: boolean
+        employee_count:
+          type: string
+          readOnly: true
+        can_add_employee:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - can_add_employee
+      - code
+      - created_at
+      - email
+      - employee_count
+      - id
+      - name
+      - updated_at
+    CompanyRegistration:
+      type: object
+      description: Serializer for company registration.
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        code:
+          type: string
+          maxLength: 50
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        phone:
+          type: string
+          maxLength: 20
+        address:
+          type: string
+        website:
+          type: string
+          format: uri
+          maxLength: 200
+        timezone:
+          type: string
+          maxLength: 50
+        currency:
+          type: string
+          maxLength: 3
+        working_hours_per_day:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,2})?$
+        working_days_per_week:
+          type: integer
+        annual_leave_days:
+          type: integer
+        sick_leave_days:
+          type: integer
+        grace_period_minutes:
+          type: integer
+        overtime_threshold_hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,2})?$
+        admin_username:
+          type: string
+          writeOnly: true
+        admin_email:
+          type: string
+          format: email
+          writeOnly: true
+        admin_password:
+          type: string
+          writeOnly: true
+          minLength: 8
+        admin_first_name:
+          type: string
+          writeOnly: true
+        admin_last_name:
+          type: string
+          writeOnly: true
+      required:
+      - admin_email
+      - admin_first_name
+      - admin_last_name
+      - admin_password
+      - admin_username
+      - code
+      - email
+      - name
+    CompanySettings:
+      type: object
+      description: Serializer for company settings management.
+      properties:
+        settings: {}
+        timezone:
+          type: string
+          maxLength: 50
+        date_format:
+          type: string
+          maxLength: 20
+        currency:
+          type: string
+          maxLength: 3
+        working_hours_per_day:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,2})?$
+        working_days_per_week:
+          type: integer
+        annual_leave_days:
+          type: integer
+        sick_leave_days:
+          type: integer
+        grace_period_minutes:
+          type: integer
+        overtime_threshold_hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,2})?$
+    PatchedCompany:
+      type: object
+      description: Serializer for Company model.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        code:
+          type: string
+          maxLength: 50
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        phone:
+          type: string
+          maxLength: 20
+        address:
+          type: string
+        website:
+          type: string
+          format: uri
+          maxLength: 200
+        logo:
+          type: string
+          format: uri
+          nullable: true
+        timezone:
+          type: string
+          maxLength: 50
+        date_format:
+          type: string
+          maxLength: 20
+        currency:
+          type: string
+          maxLength: 3
+        working_hours_per_day:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,2})?$
+        working_days_per_week:
+          type: integer
+        annual_leave_days:
+          type: integer
+        sick_leave_days:
+          type: integer
+        grace_period_minutes:
+          type: integer
+        overtime_threshold_hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,2})?$
+        subscription_plan:
+          type: string
+          maxLength: 50
+        max_employees:
+          type: integer
+        is_active:
+          type: boolean
+        employee_count:
+          type: string
+          readOnly: true
+        can_add_employee:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedCompanySettings:
+      type: object
+      description: Serializer for company settings management.
+      properties:
+        settings: {}
+        timezone:
+          type: string
+          maxLength: 50
+        date_format:
+          type: string
+          maxLength: 20
+        currency:
+          type: string
+          maxLength: 3
+        working_hours_per_day:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,2})?$
+        working_days_per_week:
+          type: integer
+        annual_leave_days:
+          type: integer
+        sick_leave_days:
+          type: integer
+        grace_period_minutes:
+          type: integer
+        overtime_threshold_hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,2})?$
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

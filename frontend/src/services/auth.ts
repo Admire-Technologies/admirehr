@@ -26,6 +26,9 @@ export const authService = {
   async logout(): Promise<void> {
     try {
       await apiClient.post('/auth/logout/');
+    } catch (error) {
+      // Ignore logout errors - we still want to clear tokens
+      console.error('Logout API call failed:', error);
     } finally {
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
