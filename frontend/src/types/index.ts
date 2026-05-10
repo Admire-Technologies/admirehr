@@ -6,9 +6,11 @@ export interface User {
   email: string;
   first_name: string;
   last_name: string;
-  role: Role;
+  role: Role | null;
   company: Company;
   employee?: Employee;
+  is_company_admin: boolean;
+  permissions?: Record<string, Permission[]>;
 }
 
 export interface Company {
@@ -22,14 +24,20 @@ export interface Company {
 export interface Role {
   id: string;
   name: string;
+  description: string;
   permissions: Permission[];
-  company: string;
+  is_system_role: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Permission {
   id: string;
   name: string;
   codename: string;
+  description: string;
+  module: string;
+  action: string;
 }
 
 export interface Employee {
@@ -93,4 +101,38 @@ export interface PayrollRecord {
   deductions: number;
   net_salary: number;
   company: string;
+}
+
+// API Response types
+export interface LoginResponse {
+  access: string;
+  refresh: string;
+  user: User;
+}
+
+export interface UserPermissionsResponse {
+  permissions: Record<string, Permission[]>;
+  role: Role | null;
+  is_company_admin: boolean;
+}
+
+// Form types
+export interface CreateUserData {
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  password: string;
+  role_id?: string;
+  is_company_admin: boolean;
+}
+
+export interface CreateRoleData {
+  name: string;
+  description: string;
+  permission_ids: string[];
+}
+
+export interface AssignRoleData {
+  role_id: string | null;
 }

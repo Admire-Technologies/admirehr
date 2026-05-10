@@ -1,19 +1,13 @@
 import apiClient from '@/lib/api';
-import { User } from '@/types';
+import { User, LoginResponse, UserPermissionsResponse } from '@/types';
 
 export interface LoginCredentials {
   username: string;
   password: string;
 }
 
-export interface AuthResponse {
-  access: string;
-  refresh: string;
-  user: User;
-}
-
 export const authService = {
-  async login(credentials: LoginCredentials): Promise<AuthResponse> {
+  async login(credentials: LoginCredentials): Promise<LoginResponse> {
     const response = await apiClient.post('/auth/login/', credentials);
     const { access, refresh, user } = response.data;
     
@@ -54,6 +48,18 @@ export const authService = {
   async getCurrentUser(): Promise<User> {
     const response = await apiClient.get('/auth/profile/');
     return response.data;
+  },
+
+  async getUserPermissions(): Promise<UserPermissionsResponse> {
+    const response = await apiClient.get('/auth/permissions/');
+    return response.data;
+  },
+
+  async changePassword(oldPassword: string, newPassword: string): Promise<void> {
+    await apiClient.post('/auth/change-password/', {
+      old_password: oldPassword,
+      new_password: newPassword,
+    });
   },
 
   isAuthenticated(): boolean {

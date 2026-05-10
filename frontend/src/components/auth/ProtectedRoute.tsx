@@ -2,66 +2,88 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { authService } from '@/services/auth';
-import { User } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
+import { usePermissions } from '@/contexts/PermissionContext';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredPermissions?: string[];
+  anyPermission?: string[];
+  module?: string;
   fallback?: React.ReactNode;
 }
 
 export default function ProtectedRoute({ 
   children, 
   requiredPermissions = [],
-  fallback = <div>Loading...</div>
+  anyPermission = [],
+  module,
+  fallback = <div className="flex items-center justify-center min-h-screen">Loading...</div>
 }: ProtectedRouteProps) {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [isChecking, setIsChecking] = useState(true);
   const router = useRouter();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { hasAllPermissions, hasAnyPermission, hasModuleAccess, isLoading: permissionsLoading } = usePermissions();
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        if (!authService.isAuthenticated()) {
-          setIsAuthenticated(false);
-          router.push('/login');
-          return;
-        }
-
-        // Verify token by fetching user profile
-        const currentUser = await authService.getCurrentUser();
-        setUser(currentUser);
-        
-        // Check permissions if required
-        if (requiredPermissions.length > 0) {
-          const hasPermissions = requiredPermissions.every(permission => 
-            currentUser.role?.permissions?.some(p => p.codename === permission)
-          );
-          
-          if (!hasPermissions) {
-            router.push('/unauthorized');
-            return;
-          }
-        }
-        
-        setIsAuthenticated(true);
-      } catch (error) {
-        console.error('Authentication check failed:', error);
-        setIsAuthenticated(false);
-        router.push('/login');
+    const checkAccess = async () => {
+      // Wait for auth and permissions to load
+      if (authLoading || permissionsLoading) {
+        return;
       }
+
+      // Check authentication
+      if (!isAuthenticated || !user) {
+        router.push('/login');
+        return;
+      }
+
+      // Check permissions
+      let hasAccess = true;
+
+      if (requiredPermissions.length > 0) {
+        hasAccess = hasAccess && hasAllPermissions(requiredPermissions);
+      }
+
+      if (anyPermission.length > 0) {
+        hasAccess = hasAccess && hasAnyPermission(anyPermission);
+      }
+
+      if (module) {
+        hasAccess = hasAccess && hasModuleAccess(module);
+      }
+
+      if (!hasAccess) {
+        router.push('/unauthorized');
+        return;
+      }
+
+      setIsChecking(false);
     };
 
-    checkAuth();
-  }, [router, requiredPermissions]);
+    checkAccess();
+  }, [
+    authLoading, 
+    permissionsLoading, 
+    isAuthenticated, 
+    user, 
+    requiredPermissions, 
+    anyPermission, 
+    module,
+    hasAllPermissions,
+    hasAnyPermission,
+    hasModuleAccess,
+    router
+  ]);
 
-  if (isAuthenticated === null) {
+  // Show loading while checking authentication and permissions
+  if (authLoading || permissionsLoading || isChecking) {
     return <>{fallback}</>;
   }
 
-  if (!isAuthenticated) {
-    return null; // Will redirect to login
+  // Show nothing while redirecting
+  if (!isAuthenticated || !user) {
+    return null;
   }
 
   return <>{children}</>;

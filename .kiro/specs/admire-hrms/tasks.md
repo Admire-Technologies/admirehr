@@ -19,7 +19,6 @@
 
 - [x] 3. Build multi-tenant foundation with company model
 
-
   - Create Company model with settings and configuration fields
   - Implement tenant-aware base model class for data isolation
   - Create company middleware for automatic tenant scoping
@@ -27,7 +26,8 @@
   - Write tests for multi-tenant data isolation
   - _Requirements: 6.1, 6.2, 6.3, 6.6_
 
-- [ ] 4. Implement Role-Based Access Control (RBAC) system
+- [x] 4. Implement Role-Based Access Control (RBAC) system
+
 
   - Create Role and Permission models with many-to-many relationships
   - Build permission checking decorators and middleware for API endpoints
