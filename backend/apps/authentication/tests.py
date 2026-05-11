@@ -75,15 +75,14 @@ class UserModelTest(TestCase):
 
     def test_has_permission_with_role(self):
         """Test permission checking with role."""
-        from django.contrib.auth.models import Permission
-        from django.contrib.contenttypes.models import ContentType
+        from .models import Permission as CustomPermission
         
-        # Create a permission
-        content_type = ContentType.objects.get_for_model(User)
-        permission = Permission.objects.create(
+        # Create a custom permission
+        permission = CustomPermission.objects.create(
             codename="test_permission",
             name="Test Permission",
-            content_type=content_type
+            module="test",
+            action="view"
         )
         
         # Add permission to role
@@ -163,10 +162,10 @@ class AuthenticationAPITest(APITestCase):
             company=self.company,
             role=self.role
         )
-        self.login_url = reverse('login')
-        self.logout_url = reverse('logout')
-        self.profile_url = reverse('profile')
-        self.refresh_url = reverse('token_refresh')
+        self.login_url = reverse('authentication:login')
+        self.logout_url = reverse('authentication:logout')
+        self.profile_url = reverse('authentication:profile')
+        self.refresh_url = reverse('authentication:token_refresh')
 
     def test_login_success(self):
         """Test successful login."""
@@ -290,7 +289,7 @@ class AuthenticationAPITest(APITestCase):
             'old_password': 'testpass123',
             'new_password': 'newpassword123'
         }
-        response = self.client.post(reverse('change_password'), data)
+        response = self.client.post(reverse('authentication:change_password'), data)
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
@@ -308,7 +307,7 @@ class AuthenticationAPITest(APITestCase):
             'old_password': 'wrongpassword',
             'new_password': 'newpassword123'
         }
-        response = self.client.post(reverse('change_password'), data)
+        response = self.client.post(reverse('authentication:change_password'), data)
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('error', response.data)

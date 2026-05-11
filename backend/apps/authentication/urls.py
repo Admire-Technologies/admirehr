@@ -8,7 +8,8 @@ from .views import (
     LoginView, LogoutView, ProfileView, ChangePasswordView,
     UserPermissionsView, RoleListCreateView, RoleDetailView,
     PermissionListView, UserListCreateView, UserDetailView,
-    AssignRoleView
+    AssignRoleView, UserActivationView, BulkUserOperationsView,
+    UserCSVImportView, UserCSVExportView, AuditLogListView
 )
 
 app_name = 'authentication'
@@ -33,4 +34,11 @@ urlpatterns = [
     path('users/', UserListCreateView.as_view(), name='user_list_create'),
     path('users/<uuid:pk>/', UserDetailView.as_view(), name='user_detail'),
     path('users/<uuid:user_id>/assign-role/', AssignRoleView.as_view(), name='assign_role'),
+    path('users/<uuid:user_id>/activation/', UserActivationView.as_view(), name='user_activation'),
+    path('users/bulk-operations/', BulkUserOperationsView.as_view(), name='bulk_user_operations'),
+    path('users/import-csv/', UserCSVImportView.as_view(), name='user_csv_import'),
+    path('users/export-csv/', UserCSVExportView.as_view(), name='user_csv_export'),
+    
+    # Audit log endpoints
+    path('audit-logs/', AuditLogListView.as_view(), name='audit_log_list'),
 ]

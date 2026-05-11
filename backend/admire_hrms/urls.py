@@ -17,6 +17,7 @@ urlpatterns = [
     path('api/v1/attendance/', include('apps.attendance.urls')),
     path('api/v1/leave/', include('apps.leave_management.urls')),
     path('api/v1/payroll/', include('apps.payroll.urls')),
+    path('api/v1/dashboard/', include('apps.dashboard.urls')),
     
     # API Documentation
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

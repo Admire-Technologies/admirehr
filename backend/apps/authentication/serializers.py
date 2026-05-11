@@ -77,7 +77,12 @@ class UserSerializer(serializers.ModelSerializer):
     
     def get_permissions(self, obj):
         """Get user permissions grouped by module."""
-        return obj.get_permissions_by_module()
+        permissions_by_module = obj.get_permissions_by_module()
+        # Convert Permission objects to serialized data
+        result = {}
+        for module, perms in permissions_by_module.items():
+            result[module] = [PermissionSerializer(perm).data for perm in perms]
+        return result
     
     def update(self, instance, validated_data):
         role_id = validated_data.pop('role_id', None)
@@ -174,3 +179,22 @@ class UserPermissionsSerializer(serializers.Serializer):
             data['permissions'] = serialized_permissions
         
         return data
+
+
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    """
+    Serializer for audit log entries.
+    """
+    user_username = serializers.CharField(source='user.username', read_only=True)
+    user_email = serializers.CharField(source='user.email', read_only=True)
+    
+    class Meta:
+        from .models import AuditLog
+        model = AuditLog
+        fields = [
+            'id', 'user', 'user_username', 'user_email', 'action', 
+            'module', 'description', 'changes', 'ip_address', 
+            'user_agent', 'timestamp'
+        ]
+        read_only_fields = fields
