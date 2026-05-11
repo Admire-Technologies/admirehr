@@ -46,6 +46,35 @@ class EmployeeSerializer(serializers.ModelSerializer):
             'id', 'employee_id', 'first_name', 'last_name', 'full_name',
             'email', 'phone', 'department', 'department_name', 'branch', 
             'branch_name', 'position', 'hire_date', 'status', 'date_of_birth', 
-            'address', 'emergency_contact_name', 'emergency_contact_phone'
+            'address', 'emergency_contact_name', 'emergency_contact_phone',
+            'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'full_name']
+        read_only_fields = ['id', 'full_name', 'created_at', 'updated_at']
+
+    def validate_employee_id(self, value):
+        """Validate employee_id is unique within company."""
+        company = self.context['request'].user.company
+        queryset = Employee.objects.filter(employee_id=value, company=company)
+        
+        # Exclude current instance when updating
+        if self.instance:
+            queryset = queryset.exclude(id=self.instance.id)
+        
+        if queryset.exists():
+            raise serializers.ValidationError("Employee ID already exists in your company.")
+        
+        return value
+
+    def validate_email(self, value):
+        """Validate email is unique within company."""
+        company = self.context['request'].user.company
+        queryset = Employee.objects.filter(email=value, company=company)
+        
+        # Exclude current instance when updating
+        if self.instance:
+            queryset = queryset.exclude(id=self.instance.id)
+        
+        if queryset.exists():
+            raise serializers.ValidationError("Email already exists in your company.")
+        
+        return value

@@ -116,13 +116,24 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 
 class EmployeeViewSet(viewsets.ModelViewSet):
     """
-    ViewSet for managing employees.
+    ViewSet for managing employees with search, filter, and import/export.
     """
     serializer_class = EmployeeSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         queryset = Employee.objects.filter(company=self.request.user.company).select_related('department', 'branch')
+        
+        # Search by name, email, or employee_id
+        search = self.request.query_params.get('search')
+        if search:
+            from django.db.models import Q
+            queryset = queryset.filter(
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search) |
+                Q(email__icontains=search) |
+                Q(employee_id__icontains=search)
+            )
         
         # Filter by department
         department_id = self.request.query_params.get('department')
@@ -139,7 +150,138 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         if status_filter:
             queryset = queryset.filter(status=status_filter)
         
-        return queryset
+        # Filter by role/position
+        position = self.request.query_params.get('position')
+        if position:
+            queryset = queryset.filter(position__icontains=position)
+        
+        return queryset.order_by('first_name', 'last_name')
 
     def perform_create(self, serializer):
         serializer.save(company=self.request.user.company)
+
+    @action(detail=False, methods=['post'])
+    def import_employees(self, request):
+        """
+        Import employees from CSV file.
+        Expected CSV format: employee_id,first_name,last_name,email,department_name,position,hire_date,status
+        """
+        import csv
+        import io
+        from django.db import transaction
+        
+        if 'file' not in request.FILES:
+            return Response({'error': 'No file provided'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        file = request.FILES['file']
+        if not file.name.endswith('.csv'):
+            return Response({'error': 'File must be a CSV'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            decoded_file = file.read().decode('utf-8')
+            io_string = io.StringIO(decoded_file)
+            reader = csv.DictReader(io_string)
+            
+            created_count = 0
+            errors = []
+            
+            with transaction.atomic():
+                for row_num, row in enumerate(reader, start=2):
+                    try:
+                        # Find or validate department
+                        dept_name = row.get('department_name', '').strip()
+                        if not dept_name:
+                            errors.append(f"Row {row_num}: Department name is required")
+                            continue
+                        
+                        try:
+                            department = Department.objects.get(
+                                name=dept_name,
+                                company=request.user.company
+                            )
+                        except Department.DoesNotExist:
+                            errors.append(f"Row {row_num}: Department '{dept_name}' not found")
+                            continue
+                        
+                        # Create employee
+                        employee_data = {
+                            'employee_id': row.get('employee_id', '').strip(),
+                            'first_name': row.get('first_name', '').strip(),
+                            'last_name': row.get('last_name', '').strip(),
+                            'email': row.get('email', '').strip(),
+                            'department': department,
+                            'position': row.get('position', '').strip(),
+                            'hire_date': row.get('hire_date', '').strip(),
+                            'status': row.get('status', 'active').strip(),
+                            'company': request.user.company
+                        }
+                        
+                        # Validate required fields
+                        if not all([employee_data['employee_id'], employee_data['first_name'], 
+                                   employee_data['last_name'], employee_data['email'], 
+                                   employee_data['hire_date']]):
+                            errors.append(f"Row {row_num}: Missing required fields")
+                            continue
+                        
+                        # Check for duplicate employee_id
+                        if Employee.objects.filter(
+                            employee_id=employee_data['employee_id'],
+                            company=request.user.company
+                        ).exists():
+                            errors.append(f"Row {row_num}: Employee ID '{employee_data['employee_id']}' already exists")
+                            continue
+                        
+                        Employee.objects.create(**employee_data)
+                        created_count += 1
+                        
+                    except Exception as e:
+                        errors.append(f"Row {row_num}: {str(e)}")
+            
+            return Response({
+                'success': True,
+                'created_count': created_count,
+                'errors': errors
+            }, status=status.HTTP_201_CREATED if created_count > 0 else status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            return Response({'error': f'Failed to process file: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['get'])
+    def export_employees(self, request):
+        """
+        Export employees to CSV file.
+        """
+        import csv
+        from django.http import HttpResponse
+        
+        queryset = self.get_queryset()
+        
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="employees.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow([
+            'Employee ID', 'First Name', 'Last Name', 'Email', 'Phone',
+            'Department', 'Branch', 'Position', 'Hire Date', 'Status',
+            'Date of Birth', 'Address', 'Emergency Contact Name', 'Emergency Contact Phone'
+        ])
+        
+        for employee in queryset:
+            writer.writerow([
+                employee.employee_id,
+                employee.first_name,
+                employee.last_name,
+                employee.email,
+                employee.phone or '',
+                employee.department.name,
+                employee.branch.name if employee.branch else '',
+                employee.position or '',
+                employee.hire_date,
+                employee.status,
+                employee.date_of_birth or '',
+                employee.address or '',
+                employee.emergency_contact_name or '',
+                employee.emergency_contact_phone or ''
+            ])
+        
+        return response

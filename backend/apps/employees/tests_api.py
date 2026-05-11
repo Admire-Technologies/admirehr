@@ -313,3 +313,284 @@ class EmployeeAPITest(TestCase):
         else:
             self.assertEqual(len(response.data), 1)
             self.assertEqual(response.data[0]['employee_id'], 'EMP001')
+
+    def test_search_employees(self):
+        """Test searching employees by name, email, or ID."""
+        Employee.objects.all().delete()
+        
+        Employee.objects.create(
+            company=self.company,
+            employee_id='EMP001',
+            first_name='John',
+            last_name='Doe',
+            email='john.doe@test.com',
+            department=self.department,
+            hire_date='2024-01-01'
+        )
+        Employee.objects.create(
+            company=self.company,
+            employee_id='EMP002',
+            first_name='Jane',
+            last_name='Smith',
+            email='jane.smith@test.com',
+            department=self.department,
+            hire_date='2024-01-01'
+        )
+
+        # Search by first name
+        response = self.client.get('/api/v1/employees/?search=John')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data if isinstance(response.data, list) else response.data.get('results', [])
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['first_name'], 'John')
+
+        # Search by email
+        response = self.client.get('/api/v1/employees/?search=jane.smith')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data if isinstance(response.data, list) else response.data.get('results', [])
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['email'], 'jane.smith@test.com')
+
+        # Search by employee ID
+        response = self.client.get('/api/v1/employees/?search=EMP002')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data if isinstance(response.data, list) else response.data.get('results', [])
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['employee_id'], 'EMP002')
+
+    def test_filter_employees_by_status(self):
+        """Test filtering employees by status."""
+        Employee.objects.all().delete()
+        
+        Employee.objects.create(
+            company=self.company,
+            employee_id='EMP001',
+            first_name='John',
+            last_name='Doe',
+            email='john@test.com',
+            department=self.department,
+            hire_date='2024-01-01',
+            status='active'
+        )
+        Employee.objects.create(
+            company=self.company,
+            employee_id='EMP002',
+            first_name='Jane',
+            last_name='Smith',
+            email='jane@test.com',
+            department=self.department,
+            hire_date='2024-01-01',
+            status='inactive'
+        )
+
+        response = self.client.get('/api/v1/employees/?status=active')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data if isinstance(response.data, list) else response.data.get('results', [])
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['status'], 'active')
+
+    def test_filter_employees_by_position(self):
+        """Test filtering employees by position."""
+        Employee.objects.all().delete()
+        
+        Employee.objects.create(
+            company=self.company,
+            employee_id='EMP001',
+            first_name='John',
+            last_name='Doe',
+            email='john@test.com',
+            department=self.department,
+            position='Software Engineer',
+            hire_date='2024-01-01'
+        )
+        Employee.objects.create(
+            company=self.company,
+            employee_id='EMP002',
+            first_name='Jane',
+            last_name='Smith',
+            email='jane@test.com',
+            department=self.department,
+            position='Project Manager',
+            hire_date='2024-01-01'
+        )
+
+        response = self.client.get('/api/v1/employees/?position=Engineer')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data if isinstance(response.data, list) else response.data.get('results', [])
+        self.assertEqual(len(results), 1)
+        self.assertIn('Engineer', results[0]['position'])
+
+    def test_export_employees(self):
+        """Test exporting employees to CSV."""
+        Employee.objects.all().delete()
+        
+        Employee.objects.create(
+            company=self.company,
+            employee_id='EMP001',
+            first_name='John',
+            last_name='Doe',
+            email='john@test.com',
+            department=self.department,
+            hire_date='2024-01-01'
+        )
+
+        response = self.client.get('/api/v1/employees/export_employees/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response['Content-Type'], 'text/csv')
+        self.assertIn('attachment', response['Content-Disposition'])
+        
+        # Check CSV content
+        content = response.content.decode('utf-8')
+        self.assertIn('Employee ID', content)
+        self.assertIn('EMP001', content)
+        self.assertIn('John', content)
+
+    def test_import_employees_success(self):
+        """Test importing employees from CSV successfully."""
+        import io
+        
+        csv_content = """employee_id,first_name,last_name,email,department_name,position,hire_date,status
+EMP003,Alice,Johnson,alice@test.com,IT,Developer,2024-01-15,active
+EMP004,Bob,Williams,bob@test.com,IT,Designer,2024-01-20,active"""
+        
+        csv_file = io.BytesIO(csv_content.encode('utf-8'))
+        csv_file.name = 'employees.csv'
+        
+        response = self.client.post('/api/v1/employees/import_employees/', {'file': csv_file}, format='multipart')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['created_count'], 2)
+        self.assertEqual(len(response.data['errors']), 0)
+        
+        # Verify employees were created
+        self.assertTrue(Employee.objects.filter(employee_id='EMP003').exists())
+        self.assertTrue(Employee.objects.filter(employee_id='EMP004').exists())
+
+    def test_import_employees_with_errors(self):
+        """Test importing employees with validation errors."""
+        import io
+        
+        csv_content = """employee_id,first_name,last_name,email,department_name,position,hire_date,status
+EMP005,Charlie,Brown,charlie@test.com,NonExistentDept,Manager,2024-01-15,active"""
+        
+        csv_file = io.BytesIO(csv_content.encode('utf-8'))
+        csv_file.name = 'employees.csv'
+        
+        response = self.client.post('/api/v1/employees/import_employees/', {'file': csv_file}, format='multipart')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['created_count'], 0)
+        self.assertGreater(len(response.data['errors']), 0)
+        self.assertIn('not found', response.data['errors'][0])
+
+    def test_import_employees_duplicate_id(self):
+        """Test importing employees with duplicate employee IDs."""
+        import io
+        
+        # Create existing employee
+        Employee.objects.create(
+            company=self.company,
+            employee_id='EMP006',
+            first_name='Existing',
+            last_name='Employee',
+            email='existing@test.com',
+            department=self.department,
+            hire_date='2024-01-01'
+        )
+        
+        csv_content = """employee_id,first_name,last_name,email,department_name,position,hire_date,status
+EMP006,Duplicate,User,duplicate@test.com,IT,Developer,2024-01-15,active"""
+        
+        csv_file = io.BytesIO(csv_content.encode('utf-8'))
+        csv_file.name = 'employees.csv'
+        
+        response = self.client.post('/api/v1/employees/import_employees/', {'file': csv_file}, format='multipart')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['created_count'], 0)
+        self.assertGreater(len(response.data['errors']), 0)
+        self.assertIn('already exists', response.data['errors'][0])
+
+    def test_validate_unique_employee_id(self):
+        """Test that employee_id must be unique within company."""
+        Employee.objects.create(
+            company=self.company,
+            employee_id='EMP007',
+            first_name='First',
+            last_name='Employee',
+            email='first@test.com',
+            department=self.department,
+            hire_date='2024-01-01'
+        )
+        
+        data = {
+            'employee_id': 'EMP007',
+            'first_name': 'Second',
+            'last_name': 'Employee',
+            'email': 'second@test.com',
+            'department': str(self.department.id),
+            'hire_date': '2024-01-01',
+            'status': 'active'
+        }
+        response = self.client.post('/api/v1/employees/', data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('employee_id', response.data)
+
+    def test_validate_unique_email(self):
+        """Test that email must be unique within company."""
+        Employee.objects.create(
+            company=self.company,
+            employee_id='EMP008',
+            first_name='First',
+            last_name='Employee',
+            email='duplicate@test.com',
+            department=self.department,
+            hire_date='2024-01-01'
+        )
+        
+        data = {
+            'employee_id': 'EMP009',
+            'first_name': 'Second',
+            'last_name': 'Employee',
+            'email': 'duplicate@test.com',
+            'department': str(self.department.id),
+            'hire_date': '2024-01-01',
+            'status': 'active'
+        }
+        response = self.client.post('/api/v1/employees/', data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('email', response.data)
+
+    def test_update_employee_with_all_fields(self):
+        """Test updating employee with all optional fields."""
+        employee = Employee.objects.create(
+            company=self.company,
+            employee_id='EMP010',
+            first_name='John',
+            last_name='Doe',
+            email='john@test.com',
+            department=self.department,
+            hire_date='2024-01-01'
+        )
+        
+        data = {
+            'employee_id': 'EMP010',
+            'first_name': 'John',
+            'last_name': 'Doe',
+            'email': 'john@test.com',
+            'phone': '+1234567890',
+            'department': str(self.department.id),
+            'branch': str(self.branch.id),
+            'position': 'Senior Developer',
+            'hire_date': '2024-01-01',
+            'status': 'active',
+            'date_of_birth': '1990-05-15',
+            'address': '123 Main St, City, State',
+            'emergency_contact_name': 'Jane Doe',
+            'emergency_contact_phone': '+0987654321'
+        }
+        response = self.client.put(f'/api/v1/employees/{employee.id}/', data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        employee.refresh_from_db()
+        self.assertEqual(employee.phone, '+1234567890')
+        self.assertEqual(employee.position, 'Senior Developer')
+        self.assertEqual(employee.emergency_contact_name, 'Jane Doe')
+

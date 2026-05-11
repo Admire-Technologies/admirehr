@@ -6,6 +6,8 @@ export const employeeService = {
     department?: string; 
     branch?: string; 
     status?: string;
+    search?: string;
+    position?: string;
   }): Promise<Employee[]> {
     const response = await apiClient.get('/employees/', { params });
     return response.data;
@@ -28,5 +30,29 @@ export const employeeService = {
 
   async deleteEmployee(id: string): Promise<void> {
     await apiClient.delete(`/employees/${id}/`);
+  },
+
+  async importEmployees(file: File): Promise<{ success: boolean; created_count: number; errors: string[] }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post('/employees/import_employees/', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  async exportEmployees(params?: { 
+    department?: string; 
+    branch?: string; 
+    status?: string;
+    search?: string;
+  }): Promise<Blob> {
+    const response = await apiClient.get('/employees/export_employees/', {
+      params,
+      responseType: 'blob',
+    });
+    return response.data;
   },
 };

@@ -45,13 +45,24 @@ export interface Employee {
   employee_id: string;
   first_name: string;
   last_name: string;
+  full_name?: string;
   email: string;
-  department: Department;
-  branch?: Branch;
+  phone?: string;
+  department: string;
+  department_name?: string;
+  branch?: string;
+  branch_name?: string;
+  position?: string;
   company: string;
   hire_date: string;
   status: 'active' | 'inactive' | 'terminated';
+  date_of_birth?: string;
+  address?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
   biometric_data?: any;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Department {

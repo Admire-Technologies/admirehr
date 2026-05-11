@@ -65,13 +65,59 @@ Represents employees in the organization.
 
 ### Employees
 - `GET /api/v1/employees/` - List all employees
-  - Query params: `department`, `branch`, `status`
+  - Query params: `search`, `department`, `branch`, `status`, `position`
 - `POST /api/v1/employees/` - Create a new employee
 - `GET /api/v1/employees/{id}/` - Get employee details
 - `PUT /api/v1/employees/{id}/` - Update employee
 - `DELETE /api/v1/employees/{id}/` - Delete employee
+- `POST /api/v1/employees/import_employees/` - Import employees from CSV
+- `GET /api/v1/employees/export_employees/` - Export employees to CSV
 
 ## Features
+
+### Search and Filtering
+The employee list endpoint supports comprehensive filtering:
+- **Search**: Searches across first_name, last_name, email, and employee_id (case-insensitive)
+- **Department filter**: Filter by department ID
+- **Branch filter**: Filter by branch ID
+- **Status filter**: Filter by employee status (active, inactive, terminated)
+- **Position filter**: Filter by position (case-insensitive contains)
+
+### Import/Export Functionality
+
+#### CSV Import
+Upload a CSV file to bulk import employees. The system validates:
+- Required fields (employee_id, first_name, last_name, email, department_name, hire_date)
+- Department existence
+- Duplicate employee IDs
+- Email uniqueness
+
+**CSV Format:**
+```csv
+employee_id,first_name,last_name,email,department_name,position,hire_date,status
+EMP001,John,Doe,john.doe@example.com,Engineering,Software Engineer,2024-01-15,active
+```
+
+Returns detailed results including:
+- Number of employees created
+- List of errors with row numbers
+
+#### CSV Export
+Export employees to CSV with all fields including:
+- Basic information (ID, name, email, phone)
+- Department and branch names
+- Professional details (position, hire date, status)
+- Personal information (date of birth, address)
+- Emergency contact information
+
+Respects current filters (search, department, branch, status).
+
+### Validation
+- `employee_id` must be unique within company
+- `email` must be unique within company
+- `department` is required
+- `hire_date` is required
+- `status` must be one of: active, inactive, terminated
 
 ### Hierarchical Organization Structure
 Both branches and departments support parent-child relationships, allowing for complex organizational hierarchies.
@@ -117,11 +163,22 @@ Test coverage includes:
 - Model creation and relationships
 - Hierarchical structures
 - API endpoints (CRUD operations)
-- Filtering and querying
+- Search functionality across multiple fields
+- Filtering by department, branch, status, and position
+- CSV import with success and error cases
+- CSV export functionality
+- Validation (unique employee_id, unique email)
 - Data isolation between companies
 - Employee count calculations
+- Department deletion protection
 
 ## Frontend Components
+
+### Employee Management
+- `EmployeeList`: Display employees with search, filter, and pagination
+- `EmployeeForm`: Create/edit employees with comprehensive validation
+- `EmployeeProfile`: View detailed employee information
+- `EmployeeImport`: Import employees from CSV files
 
 ### Department Management
 - `DepartmentList`: Display departments in a table
@@ -134,9 +191,9 @@ Test coverage includes:
 - `HierarchyTree`: Visualize branch hierarchy
 
 ### Services
+- `employeeService`: API client for employee operations (including import/export)
 - `departmentService`: API client for department operations
 - `branchService`: API client for branch operations
-- `employeeService`: API client for employee operations
 
 ## Usage Examples
 
