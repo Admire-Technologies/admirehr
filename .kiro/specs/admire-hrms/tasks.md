@@ -58,7 +58,7 @@
   - Write unit and integration tests for employee management
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6_
 
-- [ ] 7. Set up WebSocket infrastructure for real-time updates
+- [x] 7. Set up WebSocket infrastructure for real-time updates
 
   - Configure Django Channels with Redis channel layers
   - Create WebSocket consumer classes for different event types
@@ -68,7 +68,7 @@
   - Write tests for WebSocket functionality and message handling
   - _Requirements: 7.2, 9.3, 9.4_
 
-- [ ] 8. Implement biometric attendance system foundation
+- [x] 8. Implement biometric attendance system foundation
 
   - Create AttendanceRecord model with biometric verification fields
   - Build attendance API endpoints for check-in/check-out operations
@@ -79,7 +79,7 @@
   - Write tests for attendance recording and biometric verification
   - _Requirements: 3.1, 3.2, 3.3, 3.6, 10.5_
 
-- [ ] 9. Build attendance management and reporting
+- [x] 9. Build attendance management and reporting
 
   - Implement attendance list and filtering components
   - Create attendance report generation with date range filtering
@@ -90,7 +90,7 @@
   - Write tests for attendance calculations and reporting
   - _Requirements: 3.4, 3.5, 3.7, 7.1, 7.4, 7.6_
 
-- [ ] 10. Develop leave management system
+- [x] 10. Develop leave management system
 
   - Create LeaveType and LeaveRequest models with approval workflow
   - Implement leave balance calculation and tracking system
@@ -101,7 +101,7 @@
   - Write tests for leave balance calculations and approval workflows
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6_
 
-- [ ] 11. Build payroll management system
+- [x] 11. Build payroll management system
 
   - Create SalaryRule and PayrollRecord models with flexible calculation engine
   - Implement payroll calculation service with attendance and leave integration

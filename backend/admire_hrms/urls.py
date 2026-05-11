@@ -14,9 +14,9 @@ urlpatterns = [
     path('api/v1/auth/', include('apps.authentication.urls')),
     path('api/v1/', include('apps.core.urls')),
     path('api/v1/', include('apps.employees.urls')),
-    # path('api/v1/attendance/', include('apps.attendance.urls')),
-    # path('api/v1/leave/', include('apps.leave_management.urls')),
-    # path('api/v1/payroll/', include('apps.payroll.urls')),
+    path('api/v1/attendance/', include('apps.attendance.urls')),
+    path('api/v1/leave/', include('apps.leave_management.urls')),
+    path('api/v1/payroll/', include('apps.payroll.urls')),
     
     # API Documentation
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

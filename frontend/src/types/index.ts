@@ -109,13 +109,71 @@ export interface HierarchyNode {
 export interface AttendanceRecord {
   id: string;
   employee: string;
+  employee_name?: string;
+  employee_id?: string;
   date: string;
   check_in?: string;
   check_out?: string;
   working_hours?: number;
   status: 'present' | 'absent' | 'late' | 'half_day';
   biometric_verified: boolean;
+  notes?: string;
   company: string;
+}
+
+export interface BiometricData {
+  face_encoding: number[];
+  quality_score: number;
+  capture_timestamp?: string;
+  face_image?: string;
+}
+
+export interface CheckInResponse {
+  attendance: AttendanceRecord;
+  message: string;
+  similarity_score: number;
+  policy_summary: AttendancePolicySummary;
+}
+
+export interface CheckOutResponse {
+  attendance: AttendanceRecord;
+  message: string;
+  working_hours: number;
+  overtime_hours: number;
+  policy_summary: AttendancePolicySummary;
+}
+
+export interface AttendancePolicySummary {
+  date: string;
+  status: string;
+  check_in: string | null;
+  check_out: string | null;
+  working_hours: number;
+  biometric_verified: boolean;
+  overtime_hours?: number;
+  policy: {
+    expected_hours: number;
+    grace_period_minutes: number;
+    work_start_time: string;
+    work_end_time: string;
+  };
+}
+
+export interface AttendanceWebSocketEvent {
+  type: 'attendance.update';
+  data: {
+    employee_id: string;
+    employee_name: string;
+    action: 'check_in' | 'check_out';
+    timestamp: string;
+    location: string;
+    status?: string;
+    biometric_verified?: boolean;
+    similarity_score?: number;
+    working_hours?: number;
+    overtime_hours?: number;
+  };
+  timestamp: string;
 }
 
 export interface LeaveRequest {
