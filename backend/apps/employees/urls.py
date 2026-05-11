@@ -7,8 +7,9 @@ from rest_framework.routers import DefaultRouter
 from . import views
 
 router = DefaultRouter()
-router.register(r'', views.EmployeeViewSet)
-router.register(r'departments', views.DepartmentViewSet)
+router.register(r'employees', views.EmployeeViewSet, basename='employee')
+router.register(r'departments', views.DepartmentViewSet, basename='department')
+router.register(r'branches', views.BranchViewSet, basename='branch')
 
 urlpatterns = [
     path('', include(router.urls)),

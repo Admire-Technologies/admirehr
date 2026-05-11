@@ -37,7 +37,7 @@
   - Write comprehensive tests for RBAC enforcement
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
 
-- [ ] 5. Create organizational structure (departments and branches)
+- [x] 5. Create organizational structure (departments and branches)
 
   - Implement Department model with hierarchical relationships
   - Create Branch model for multi-location support

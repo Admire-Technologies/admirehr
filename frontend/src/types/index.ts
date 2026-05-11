@@ -47,6 +47,7 @@ export interface Employee {
   last_name: string;
   email: string;
   department: Department;
+  branch?: Branch;
   company: string;
   hire_date: string;
   status: 'active' | 'inactive' | 'terminated';
@@ -56,8 +57,42 @@ export interface Employee {
 export interface Department {
   id: string;
   name: string;
+  description?: string;
   company: string;
   parent?: string;
+  parent_name?: string;
+  is_active: boolean;
+  employee_count?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Branch {
+  id: string;
+  name: string;
+  code: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  parent?: string;
+  parent_name?: string;
+  is_active: boolean;
+  city?: string;
+  state?: string;
+  country?: string;
+  postal_code?: string;
+  employee_count?: number;
+  full_address?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface HierarchyNode {
+  id: string;
+  name: string;
+  employee_count: number;
+  parent?: string;
+  children: HierarchyNode[];
 }
 
 export interface AttendanceRecord {
