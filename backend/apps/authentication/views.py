@@ -10,6 +10,12 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.db.models import Q
+from drf_spectacular.utils import (
+    extend_schema, extend_schema_view, OpenApiParameter, OpenApiExample,
+    OpenApiResponse, inline_serializer
+)
+from drf_spectacular.types import OpenApiTypes
+from rest_framework import serializers as drf_serializers
 from .serializers import (
     LoginSerializer, UserSerializer, ChangePasswordSerializer,
     RoleSerializer, PermissionSerializer, CreateUserSerializer,
@@ -26,6 +32,57 @@ class LoginView(APIView):
     """
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        tags=['Authentication'],
+        summary='User Login',
+        description='Authenticate user and return JWT access and refresh tokens.',
+        request=LoginSerializer,
+        responses={
+            200: OpenApiResponse(
+                response=inline_serializer(
+                    name='LoginResponse',
+                    fields={
+                        'access': drf_serializers.CharField(),
+                        'refresh': drf_serializers.CharField(),
+                        'user': UserSerializer(),
+                    }
+                ),
+                description='Login successful',
+                examples=[
+                    OpenApiExample(
+                        'Success Response',
+                        value={
+                            'access': 'eyJ0eXAiOiJKV1QiLCJhbGc...',
+                            'refresh': 'eyJ0eXAiOiJKV1QiLCJhbGc...',
+                            'user': {
+                                'id': '123e4567-e89b-12d3-a456-426614174000',
+                                'username': 'john.doe',
+                                'email': 'john.doe@example.com',
+                                'first_name': 'John',
+                                'last_name': 'Doe',
+                                'role': {
+                                    'id': '123e4567-e89b-12d3-a456-426614174001',
+                                    'name': 'HR Manager'
+                                }
+                            }
+                        }
+                    )
+                ]
+            ),
+            401: OpenApiResponse(description='Invalid credentials'),
+            400: OpenApiResponse(description='Bad request - validation error'),
+        },
+        examples=[
+            OpenApiExample(
+                'Login Request',
+                value={
+                    'username': 'john.doe',
+                    'password': 'SecurePassword123!'
+                },
+                request_only=True,
+            )
+        ]
+    )
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
@@ -66,6 +123,26 @@ class LogoutView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=['Authentication'],
+        summary='User Logout',
+        description='Logout user by blacklisting the refresh token.',
+        request=inline_serializer(
+            name='LogoutRequest',
+            fields={'refresh': drf_serializers.CharField()}
+        ),
+        responses={
+            205: OpenApiResponse(description='Logout successful'),
+            400: OpenApiResponse(description='Bad request - invalid token'),
+        },
+        examples=[
+            OpenApiExample(
+                'Logout Request',
+                value={'refresh': 'eyJ0eXAiOiJKV1QiLCJhbGc...'},
+                request_only=True,
+            )
+        ]
+    )
     def post(self, request):
         try:
             refresh_token = request.data["refresh"]

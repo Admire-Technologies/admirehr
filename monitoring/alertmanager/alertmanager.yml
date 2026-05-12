@@ -1,0 +1,109 @@
+# AlertManager configuration for Admire HRMS
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: '${SMTP_HOST}:${SMTP_PORT}'
+  smtp_from: '${ALERT_EMAIL_FROM}'
+  smtp_auth_username: '${SMTP_USERNAME}'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+  smtp_require_tls: true
+
+# Templates
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Route configuration
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'default'
+  
+  routes:
+    # Critical alerts go to multiple channels
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      continue: true
+    
+    # Warning alerts
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+    
+    # Database alerts
+    - match:
+        alertname: DatabaseConnectionFailed
+      receiver: 'database-team'
+    
+    # Application alerts
+    - match_re:
+        alertname: (ServiceDown|HighErrorRate)
+      receiver: 'dev-team'
+
+# Receivers
+receivers:
+  # Default receiver
+  - name: 'default'
+    email_configs:
+      - to: '${ALERT_EMAIL_DEFAULT}'
+        headers:
+          Subject: '[Admire HRMS] Alert: {{ .GroupLabels.alertname }}'
+        html: |
+          <h2>Alert: {{ .GroupLabels.alertname }}</h2>
+          <p><strong>Severity:</strong> {{ .CommonLabels.severity }}</p>
+          <p><strong>Summary:</strong> {{ .CommonAnnotations.summary }}</p>
+          <p><strong>Description:</strong> {{ .CommonAnnotations.description }}</p>
+          <p><strong>Time:</strong> {{ .StartsAt }}</p>
+
+  # Critical alerts (email + Slack)
+  - name: 'critical-alerts'
+    email_configs:
+      - to: '${ALERT_EMAIL_CRITICAL}'
+        headers:
+          Subject: '[CRITICAL] Admire HRMS Alert: {{ .GroupLabels.alertname }}'
+        send_resolved: true
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#alerts-critical'
+        title: 'CRITICAL: {{ .GroupLabels.alertname }}'
+        text: '{{ .CommonAnnotations.description }}'
+        send_resolved: true
+
+  # Warning alerts
+  - name: 'warning-alerts'
+    email_configs:
+      - to: '${ALERT_EMAIL_WARNING}'
+        headers:
+          Subject: '[WARNING] Admire HRMS Alert: {{ .GroupLabels.alertname }}'
+        send_resolved: true
+
+  # Database team
+  - name: 'database-team'
+    email_configs:
+      - to: '${ALERT_EMAIL_DATABASE}'
+        headers:
+          Subject: '[Database] Admire HRMS Alert: {{ .GroupLabels.alertname }}'
+        send_resolved: true
+
+  # Development team
+  - name: 'dev-team'
+    email_configs:
+      - to: '${ALERT_EMAIL_DEV}'
+        headers:
+          Subject: '[Dev Team] Admire HRMS Alert: {{ .GroupLabels.alertname }}'
+        send_resolved: true
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#dev-alerts'
+        title: '{{ .GroupLabels.alertname }}'
+        text: '{{ .CommonAnnotations.description }}'
+
+# Inhibition rules
+inhibit_rules:
+  # Inhibit warning if critical is firing
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'instance']

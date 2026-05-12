@@ -4,6 +4,7 @@
 'use client';
 
 import React from 'react';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 import { DashboardMetrics } from '@/components/dashboard/DashboardMetrics';
 import { AttendanceTrendsChart } from '@/components/dashboard/AttendanceTrendsChart';
 import { LeavePatternsChart } from '@/components/dashboard/LeavePatternsChart';
@@ -11,12 +12,12 @@ import { ReportGenerator } from '@/components/dashboard/ReportGenerator';
 
 export default function DashboardPage() {
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <DashboardLayout>
+      <div className="space-y-6">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-2">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
             Real-time metrics and comprehensive reporting
           </p>
         </div>
@@ -33,6 +34,6 @@ export default function DashboardPage() {
         {/* Report Generation */}
         <ReportGenerator />
       </div>
-    </div>
+    </DashboardLayout>
   );
 }
