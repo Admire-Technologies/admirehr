@@ -1,0 +1,6 @@
+# Security Testing Requirements
+
+pytest==7.4.3
+requests==2.31.0
+safety==3.0.1
+bandit==1.7.5

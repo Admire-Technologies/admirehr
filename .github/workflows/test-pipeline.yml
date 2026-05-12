@@ -1,0 +1,494 @@
+name: Comprehensive Test Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  backend-unit-tests:
+    name: Backend Unit Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: admire_hrms_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        working-directory: ./backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest-cov pytest-xdist
+      
+      - name: Run migrations
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/admire_hrms_test
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          python manage.py migrate --noinput
+      
+      - name: Run unit tests with coverage
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/admire_hrms_test
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          pytest -v --cov=apps --cov-report=xml --cov-report=html --cov-report=term -n auto
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./backend/coverage.xml
+          flags: backend
+          name: backend-coverage
+      
+      - name: Archive coverage report
+        uses: actions/upload-artifact@v3
+        with:
+          name: backend-coverage-report
+          path: backend/htmlcov/
+
+  frontend-unit-tests:
+    name: Frontend Unit Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+      
+      - name: Run unit tests with coverage
+        working-directory: ./frontend
+        run: npm run test -- --coverage --watchAll=false
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./frontend/coverage/coverage-final.json
+          flags: frontend
+          name: frontend-coverage
+      
+      - name: Archive coverage report
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-coverage-report
+          path: frontend/coverage/
+
+  e2e-tests:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    needs: [backend-unit-tests, frontend-unit-tests]
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: admire_hrms_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+      
+      - name: Install Playwright browsers
+        working-directory: ./frontend
+        run: npx playwright install --with-deps
+      
+      - name: Run migrations
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/admire_hrms_test
+          REDIS_URL: redis://localhost:6379/0
+        run: python manage.py migrate --noinput
+      
+      - name: Create test data
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/admire_hrms_test
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          python manage.py create_default_permissions
+          python manage.py shell -c "
+          from django.contrib.auth import get_user_model;
+          from apps.core.models import Company;
+          User = get_user_model();
+          company = Company.objects.create(name='Test Company', code='TEST');
+          User.objects.create_superuser('admin', 'admin@test.com', 'admin123', company=company) if not User.objects.filter(username='admin').exists() else None
+          "
+      
+      - name: Start backend server
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/admire_hrms_test
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          python manage.py runserver 8000 &
+          sleep 10
+      
+      - name: Start frontend server
+        working-directory: ./frontend
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+        run: |
+          npm run build
+          npm run start &
+          sleep 10
+      
+      - name: Run E2E tests
+        working-directory: ./frontend
+        run: npm run test:e2e
+      
+      - name: Upload E2E test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: e2e-test-results
+          path: frontend/test-results/
+      
+      - name: Upload E2E test report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: e2e-test-report
+          path: frontend/playwright-report/
+
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: [backend-unit-tests]
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: admire_hrms_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install -r tests/performance/requirements.txt
+      
+      - name: Run migrations
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/admire_hrms_test
+          REDIS_URL: redis://localhost:6379/0
+        run: python manage.py migrate --noinput
+      
+      - name: Create test data
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/admire_hrms_test
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          python manage.py create_default_permissions
+          python manage.py shell -c "
+          from django.contrib.auth import get_user_model;
+          from apps.core.models import Company;
+          User = get_user_model();
+          company = Company.objects.create(name='Test Company', code='TEST');
+          User.objects.create_superuser('admin', 'admin@test.com', 'admin123', company=company) if not User.objects.filter(username='admin').exists() else None
+          "
+      
+      - name: Start backend server
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/admire_hrms_test
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          python manage.py runserver 8000 &
+          sleep 10
+      
+      - name: Run performance tests
+        run: pytest tests/performance/ -v -s
+      
+      - name: Upload performance test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-test-results
+          path: tests/performance/results/
+
+  security-tests:
+    name: Security Tests
+    runs-on: ubuntu-latest
+    needs: [backend-unit-tests]
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: admire_hrms_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install -r tests/security/requirements.txt
+      
+      - name: Run migrations
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/admire_hrms_test
+          REDIS_URL: redis://localhost:6379/0
+        run: python manage.py migrate --noinput
+      
+      - name: Create test data
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/admire_hrms_test
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          python manage.py create_default_permissions
+          python manage.py shell -c "
+          from django.contrib.auth import get_user_model;
+          from apps.core.models import Company;
+          User = get_user_model();
+          company = Company.objects.create(name='Test Company', code='TEST');
+          User.objects.create_superuser('admin', 'admin@test.com', 'admin123', company=company) if not User.objects.filter(username='admin').exists() else None
+          "
+      
+      - name: Start backend server
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/admire_hrms_test
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          python manage.py runserver 8000 &
+          sleep 10
+      
+      - name: Run security tests
+        run: pytest tests/security/ -v -s
+      
+      - name: Upload security test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-test-results
+          path: tests/security/results/
+
+  accessibility-tests:
+    name: Accessibility Tests
+    runs-on: ubuntu-latest
+    needs: [frontend-unit-tests]
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+      
+      - name: Install Playwright and axe
+        working-directory: ./frontend
+        run: |
+          npx playwright install --with-deps
+          npm install --save-dev @axe-core/playwright
+      
+      - name: Build frontend
+        working-directory: ./frontend
+        run: npm run build
+      
+      - name: Start frontend server
+        working-directory: ./frontend
+        run: |
+          npm run start &
+          sleep 10
+      
+      - name: Run accessibility tests
+        working-directory: ./frontend
+        run: npm run test:accessibility || true
+      
+      - name: Upload accessibility test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: accessibility-test-results
+          path: frontend/accessibility-results/
+
+  coverage-report:
+    name: Generate Coverage Report
+    runs-on: ubuntu-latest
+    needs: [backend-unit-tests, frontend-unit-tests, e2e-tests]
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Download backend coverage
+        uses: actions/download-artifact@v3
+        with:
+          name: backend-coverage-report
+          path: coverage/backend
+      
+      - name: Download frontend coverage
+        uses: actions/download-artifact@v3
+        with:
+          name: frontend-coverage-report
+          path: coverage/frontend
+      
+      - name: Generate combined coverage report
+        run: |
+          echo "# Test Coverage Report" > coverage-summary.md
+          echo "" >> coverage-summary.md
+          echo "## Backend Coverage" >> coverage-summary.md
+          echo "See backend coverage report in artifacts" >> coverage-summary.md
+          echo "" >> coverage-summary.md
+          echo "## Frontend Coverage" >> coverage-summary.md
+          echo "See frontend coverage report in artifacts" >> coverage-summary.md
+      
+      - name: Upload combined coverage report
+        uses: actions/upload-artifact@v3
+        with:
+          name: combined-coverage-report
+          path: coverage/
+      
+      - name: Comment PR with coverage
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '## Test Coverage Report\n\nCoverage reports have been generated. Check the artifacts for detailed reports.'
+            })

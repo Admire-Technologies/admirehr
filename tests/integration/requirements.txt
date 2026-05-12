@@ -1,0 +1,7 @@
+# Integration Testing Requirements
+
+pytest==7.4.3
+requests==2.31.0
+redis==5.0.1
+celery==5.3.4
+websocket-client==1.7.0
