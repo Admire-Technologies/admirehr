@@ -8,8 +8,22 @@ from typing import Callable, Any
 from django.core.cache import cache
 from django.db import connection
 from django.conf import settings
-import psutil
-import redis
+
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+    logger = logging.getLogger('admire_hrms.monitoring')
+    logger.warning("psutil not installed. System metrics will not be available.")
+
+try:
+    import redis
+    REDIS_AVAILABLE = True
+except ImportError:
+    REDIS_AVAILABLE = False
+    logger = logging.getLogger('admire_hrms.monitoring')
+    logger.warning("redis package not installed. Redis metrics will not be available.")
 
 logger = logging.getLogger('admire_hrms.monitoring')
 
@@ -47,6 +61,16 @@ class PerformanceMonitor:
         """
         Get current system metrics
         """
+        if not PSUTIL_AVAILABLE:
+            return {
+                'error': 'psutil not installed',
+                'cpu_percent': 0,
+                'memory_percent': 0,
+                'memory_available_mb': 0,
+                'disk_percent': 0,
+                'disk_free_gb': 0,
+            }
+        
         try:
             cpu_percent = psutil.cpu_percent(interval=1)
             memory = psutil.virtual_memory()
@@ -97,6 +121,12 @@ class PerformanceMonitor:
         """
         Get Redis connection metrics
         """
+        if not REDIS_AVAILABLE:
+            return {
+                'redis_connected': False,
+                'error': 'redis package not installed',
+            }
+        
         try:
             redis_client = redis.from_url(settings.REDIS_URL)
             

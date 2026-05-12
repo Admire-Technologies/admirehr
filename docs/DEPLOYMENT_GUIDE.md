@@ -1,539 +1,673 @@
 # Admire HRMS Deployment Guide
 
-## Overview
-
-This guide provides step-by-step instructions for deploying Admire HRMS to production environments.
-
 ## Table of Contents
 
-1. [Prerequisites](#prerequisites)
-2. [Initial Setup](#initial-setup)
-3. [Production Deployment](#production-deployment)
-4. [Post-Deployment](#post-deployment)
-5. [Monitoring Setup](#monitoring-setup)
-6. [Troubleshooting](#troubleshooting)
+1. [System Requirements](#system-requirements)
+2. [Pre-Deployment Checklist](#pre-deployment-checklist)
+3. [Environment Setup](#environment-setup)
+4. [Database Configuration](#database-configuration)
+5. [Application Deployment](#application-deployment)
+6. [WebSocket Configuration](#websocket-configuration)
+7. [Background Jobs Setup](#background-jobs-setup)
+8. [Security Configuration](#security-configuration)
+9. [Monitoring and Logging](#monitoring-and-logging)
+10. [Backup and Recovery](#backup-and-recovery)
+11. [Troubleshooting](#troubleshooting)
 
-## Prerequisites
+## System Requirements
 
-### System Requirements
+### Minimum Requirements
 
-**Minimum Requirements**:
+**Backend Server**:
 - CPU: 4 cores
 - RAM: 8 GB
-- Disk: 100 GB SSD
+- Storage: 100 GB SSD
 - OS: Ubuntu 20.04 LTS or later
 
-**Recommended Requirements**:
+**Database Server**:
+- CPU: 4 cores
+- RAM: 16 GB
+- Storage: 200 GB SSD (with RAID for redundancy)
+
+**Redis Server**:
+- CPU: 2 cores
+- RAM: 4 GB
+- Storage: 20 GB SSD
+
+### Recommended Requirements (Production)
+
+**Backend Server**:
 - CPU: 8 cores
 - RAM: 16 GB
-- Disk: 250 GB SSD
-- OS: Ubuntu 22.04 LTS
+- Storage: 200 GB SSD
+
+**Database Server**:
+- CPU: 8 cores
+- RAM: 32 GB
+- Storage: 500 GB SSD with RAID 10
+
+**Redis Server**:
+- CPU: 4 cores
+- RAM: 8 GB
+- Storage: 50 GB SSD
 
 ### Software Requirements
 
-- Docker 24.0+
-- Docker Compose 2.20+
-- Git
-- SSL Certificate (for HTTPS)
+- Python 3.10 or later
+- PostgreSQL 14 or later
+- Redis 6.2 or later
+- Node.js 18 or later (for frontend)
+- Nginx 1.20 or later
+- Docker and Docker Compose (optional but recommended)
 
-### Network Requirements
+## Pre-Deployment Checklist
 
-- Open ports: 80 (HTTP), 443 (HTTPS)
-- Outbound internet access for Docker images
-- SMTP server for email notifications
+- [ ] Domain name configured and DNS records set
+- [ ] SSL/TLS certificates obtained
+- [ ] Database server provisioned and secured
+- [ ] Redis server provisioned
+- [ ] Backup storage configured
+- [ ] Email service configured (SMTP)
+- [ ] Monitoring tools set up
+- [ ] Security audit completed
+- [ ] Load testing performed
+- [ ] Documentation reviewed
 
-## Initial Setup
+## Environment Setup
 
-### 1. Install Docker and Docker Compose
+### 1. Server Preparation
 
 ```bash
-# Update system
-sudo apt-get update
-sudo apt-get upgrade -y
+# Update system packages
+sudo apt update && sudo apt upgrade -y
 
-# Install Docker
+# Install required packages
+sudo apt install -y python3.10 python3.10-venv python3-pip \
+    postgresql-client redis-tools nginx git curl
+
+# Install Docker (optional)
 curl -fsSL https://get.docker.com -o get-docker.sh
 sudo sh get-docker.sh
+sudo usermod -aG docker $USER
 
 # Install Docker Compose
-sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" \
+    -o /usr/local/bin/docker-compose
 sudo chmod +x /usr/local/bin/docker-compose
-
-# Verify installation
-docker --version
-docker-compose --version
 ```
 
-### 2. Clone Repository
+### 2. Application User Setup
 
 ```bash
-# Create deployment directory
-sudo mkdir -p /opt/admire-hrms
-cd /opt/admire-hrms
+# Create application user
+sudo useradd -m -s /bin/bash admire
+sudo usermod -aG sudo admire
 
-# Clone repository
-git clone https://github.com/your-org/admire-hrms.git .
-
-# Or download release
-wget https://github.com/your-org/admire-hrms/archive/v1.0.0.tar.gz
-tar -xzf v1.0.0.tar.gz
+# Switch to application user
+sudo su - admire
 ```
 
-### 3. Configure Environment
+### 3. Clone Repository
 
 ```bash
-# Copy environment template
-cp .env.example .env
+# Clone the repository
+git clone https://github.com/your-org/admire-hrms.git
+cd admire-hrms
 
-# Edit environment variables
-nano .env
+# Checkout production branch
+git checkout production
 ```
 
-**Required Environment Variables**:
+## Database Configuration
+
+### 1. PostgreSQL Setup
 
 ```bash
+# Install PostgreSQL
+sudo apt install -y postgresql postgresql-contrib
+
+# Start PostgreSQL service
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+
+# Create database and user
+sudo -u postgres psql << EOF
+CREATE DATABASE admire_hrms;
+CREATE USER admire_user WITH PASSWORD 'secure_password_here';
+ALTER ROLE admire_user SET client_encoding TO 'utf8';
+ALTER ROLE admire_user SET default_transaction_isolation TO 'read committed';
+ALTER ROLE admire_user SET timezone TO 'UTC';
+GRANT ALL PRIVILEGES ON DATABASE admire_hrms TO admire_user;
+\q
+EOF
+```
+
+### 2. Database Optimization
+
+Edit `/etc/postgresql/14/main/postgresql.conf`:
+
+```conf
+# Memory Configuration
+shared_buffers = 4GB
+effective_cache_size = 12GB
+maintenance_work_mem = 1GB
+work_mem = 64MB
+
+# Connection Configuration
+max_connections = 200
+
+# Query Optimization
+random_page_cost = 1.1  # For SSD
+effective_io_concurrency = 200
+
+# Write Ahead Log
+wal_buffers = 16MB
+checkpoint_completion_target = 0.9
+
+# Logging
+log_min_duration_statement = 1000  # Log slow queries (>1s)
+log_line_prefix = '%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h '
+```
+
+Restart PostgreSQL:
+```bash
+sudo systemctl restart postgresql
+```
+
+### 3. Database Indexes
+
+Run migrations to create optimized indexes:
+
+```bash
+python manage.py migrate
+python manage.py create_indexes  # Custom management command
+```
+
+## Application Deployment
+
+### Option 1: Docker Deployment (Recommended)
+
+#### 1. Configure Environment Variables
+
+Create `.env.production`:
+
+```env
 # Django Settings
-SECRET_KEY=your-very-long-random-secret-key-here
+SECRET_KEY=your-secret-key-here-change-in-production
 DEBUG=False
 ALLOWED_HOSTS=yourdomain.com,www.yourdomain.com
 
 # Database
-POSTGRES_DB=admire_hrms
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=your-secure-database-password
+DATABASE_URL=postgresql://admire_user:password@db:5432/admire_hrms
 
 # Redis
 REDIS_URL=redis://redis:6379/0
 
-# Email Configuration
+# Email
 EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_USE_TLS=True
-EMAIL_HOST_USER=your-email@example.com
-EMAIL_HOST_PASSWORD=your-email-password
+EMAIL_HOST_USER=your-email@gmail.com
+EMAIL_HOST_PASSWORD=your-app-password
 DEFAULT_FROM_EMAIL=noreply@yourdomain.com
 
-# Frontend
-NEXT_PUBLIC_API_URL=https://yourdomain.com/api
-NEXT_PUBLIC_WS_URL=wss://yourdomain.com/ws
+# Security
+SECURE_SSL_REDIRECT=True
+SESSION_COOKIE_SECURE=True
+CSRF_COOKIE_SECURE=True
+SECURE_HSTS_SECONDS=31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS=True
+SECURE_HSTS_PRELOAD=True
 
-# Backup
-BACKUP_ENCRYPTION_KEY=your-backup-encryption-key
-BACKUP_RETENTION_DAYS=30
+# CORS
+CORS_ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
 ```
 
-### 4. Generate Secret Keys
+#### 2. Build and Deploy
 
 ```bash
-# Generate Django secret key
-python3 -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+# Build Docker images
+docker-compose -f docker-compose.prod.yml build
 
-# Generate backup encryption key
-openssl rand -base64 32
+# Run database migrations
+docker-compose -f docker-compose.prod.yml run --rm backend python manage.py migrate
+
+# Create superuser
+docker-compose -f docker-compose.prod.yml run --rm backend python manage.py createsuperuser
+
+# Collect static files
+docker-compose -f docker-compose.prod.yml run --rm backend python manage.py collectstatic --noinput
+
+# Start services
+docker-compose -f docker-compose.prod.yml up -d
 ```
 
-### 5. Set Up SSL Certificate
+### Option 2: Manual Deployment
 
-**Option A: Let's Encrypt (Recommended)**
+#### 1. Python Environment Setup
 
 ```bash
-# Install Certbot
-sudo apt-get install certbot python3-certbot-nginx
+# Create virtual environment
+python3.10 -m venv venv
+source venv/bin/activate
 
-# Obtain certificate
-sudo certbot certonly --standalone -d yourdomain.com -d www.yourdomain.com
-
-# Certificates will be at:
-# /etc/letsencrypt/live/yourdomain.com/fullchain.pem
-# /etc/letsencrypt/live/yourdomain.com/privkey.pem
+# Install dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+pip install gunicorn
 ```
 
-**Option B: Custom Certificate**
+#### 2. Configure Environment
 
-Place your SSL certificate files:
-- Certificate: `/opt/admire-hrms/ssl/cert.pem`
-- Private Key: `/opt/admire-hrms/ssl/key.pem`
+Create `.env` file with production settings (same as above).
 
-### 6. Update Nginx Configuration
+#### 3. Run Migrations
 
-Edit `nginx/nginx.conf` to add SSL:
+```bash
+python manage.py migrate
+python manage.py collectstatic --noinput
+python manage.py createsuperuser
+```
+
+#### 4. Gunicorn Configuration
+
+Create `/etc/systemd/system/admire-hrms.service`:
+
+```ini
+[Unit]
+Description=Admire HRMS Gunicorn Service
+After=network.target
+
+[Service]
+User=admire
+Group=www-data
+WorkingDirectory=/home/admire/admire-hrms/backend
+Environment="PATH=/home/admire/admire-hrms/venv/bin"
+ExecStart=/home/admire/admire-hrms/venv/bin/gunicorn \
+    --workers 4 \
+    --bind unix:/run/admire-hrms.sock \
+    --timeout 120 \
+    --access-logfile /var/log/admire-hrms/access.log \
+    --error-logfile /var/log/admire-hrms/error.log \
+    admire_hrms.wsgi:application
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Start the service:
+
+```bash
+sudo systemctl start admire-hrms
+sudo systemctl enable admire-hrms
+```
+
+## WebSocket Configuration
+
+### 1. Daphne Service (ASGI Server)
+
+Create `/etc/systemd/system/admire-hrms-ws.service`:
+
+```ini
+[Unit]
+Description=Admire HRMS WebSocket Service
+After=network.target
+
+[Service]
+User=admire
+Group=www-data
+WorkingDirectory=/home/admire/admire-hrms/backend
+Environment="PATH=/home/admire/admire-hrms/venv/bin"
+ExecStart=/home/admire/admire-hrms/venv/bin/daphne \
+    -b 0.0.0.0 \
+    -p 8001 \
+    admire_hrms.asgi:application
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Start the service:
+
+```bash
+sudo systemctl start admire-hrms-ws
+sudo systemctl enable admire-hrms-ws
+```
+
+### 2. Nginx WebSocket Configuration
+
+Add to Nginx configuration:
 
 ```nginx
-server {
-    listen 80;
-    server_name yourdomain.com www.yourdomain.com;
-    return 301 https://$server_name$request_uri;
+upstream websocket {
+    server 127.0.0.1:8001;
 }
 
 server {
     listen 443 ssl http2;
-    server_name yourdomain.com www.yourdomain.com;
+    server_name yourdomain.com;
 
-    ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
-    
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-    ssl_prefer_server_ciphers on;
-
-    # ... rest of configuration
+    # WebSocket location
+    location /ws/ {
+        proxy_pass http://websocket;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400;
+    }
 }
 ```
 
-## Production Deployment
+## Background Jobs Setup
 
-### 1. Build and Start Services
+### 1. Celery Worker Service
 
-```bash
-cd /opt/admire-hrms
+Create `/etc/systemd/system/admire-hrms-celery.service`:
 
-# Build images
-docker-compose build
+```ini
+[Unit]
+Description=Admire HRMS Celery Worker
+After=network.target redis.service
 
-# Start services
-docker-compose up -d
+[Service]
+Type=forking
+User=admire
+Group=www-data
+WorkingDirectory=/home/admire/admire-hrms/backend
+Environment="PATH=/home/admire/admire-hrms/venv/bin"
+ExecStart=/home/admire/admire-hrms/venv/bin/celery -A admire_hrms worker \
+    --loglevel=info \
+    --concurrency=4 \
+    --logfile=/var/log/admire-hrms/celery-worker.log
 
-# Check status
-docker-compose ps
+[Install]
+WantedBy=multi-user.target
 ```
 
-### 2. Initialize Database
+### 2. Celery Beat Service (Scheduler)
 
-```bash
-# Run migrations
-docker-compose exec backend python manage.py migrate
+Create `/etc/systemd/system/admire-hrms-celery-beat.service`:
 
-# Create superuser
-docker-compose exec backend python manage.py createsuperuser
+```ini
+[Unit]
+Description=Admire HRMS Celery Beat Scheduler
+After=network.target redis.service
 
-# Create default permissions
-docker-compose exec backend python manage.py create_default_permissions
+[Service]
+Type=simple
+User=admire
+Group=www-data
+WorkingDirectory=/home/admire/admire-hrms/backend
+Environment="PATH=/home/admire/admire-hrms/venv/bin"
+ExecStart=/home/admire/admire-hrms/venv/bin/celery -A admire_hrms beat \
+    --loglevel=info \
+    --scheduler django_celery_beat.schedulers:DatabaseScheduler \
+    --logfile=/var/log/admire-hrms/celery-beat.log
 
-# Collect static files
-docker-compose exec backend python manage.py collectstatic --noinput
+[Install]
+WantedBy=multi-user.target
 ```
 
-### 3. Verify Deployment
+Start services:
 
 ```bash
-# Check all services are running
-docker-compose ps
-
-# Check logs
-docker-compose logs --tail=50
-
-# Test health endpoints
-curl https://yourdomain.com/health
-curl https://yourdomain.com/api/v1/health/detailed/
-
-# Run deployment tests
-cd tests/deployment
-pip install -r requirements.txt
-pytest test_deployment.py -v
+sudo systemctl start admire-hrms-celery
+sudo systemctl enable admire-hrms-celery
+sudo systemctl start admire-hrms-celery-beat
+sudo systemctl enable admire-hrms-celery-beat
 ```
 
-### 4. Set Up Automated Backups
+## Security Configuration
+
+### 1. Firewall Setup
 
 ```bash
-# Make scripts executable
-chmod +x scripts/*.sh
-
-# Test backup script
-sudo ./scripts/backup.sh
-
-# Add to crontab for daily backups at 2 AM
-sudo crontab -e
-
-# Add this line:
-0 2 * * * /opt/admire-hrms/scripts/backup.sh >> /opt/admire-hrms/logs/backup.log 2>&1
-```
-
-### 5. Configure Remote Backup (Optional)
-
-```bash
-# Set up SSH key for remote backup
-ssh-keygen -t rsa -b 4096 -f ~/.ssh/backup_key
-
-# Copy public key to backup server
-ssh-copy-id -i ~/.ssh/backup_key.pub user@backup-server
-
-# Update .env with remote backup settings
-REMOTE_BACKUP_ENABLED=true
-REMOTE_BACKUP_HOST=backup-server
-REMOTE_BACKUP_USER=backup-user
-REMOTE_BACKUP_PATH=/backups/admire-hrms
-```
-
-## Post-Deployment
-
-### 1. Security Hardening
-
-```bash
-# Set up firewall
-sudo ufw allow 22/tcp  # SSH
-sudo ufw allow 80/tcp  # HTTP
-sudo ufw allow 443/tcp # HTTPS
+# Enable UFW
 sudo ufw enable
 
-# Disable root login
-sudo nano /etc/ssh/sshd_config
-# Set: PermitRootLogin no
-sudo systemctl restart sshd
+# Allow SSH
+sudo ufw allow 22/tcp
 
-# Set up fail2ban
-sudo apt-get install fail2ban
-sudo systemctl enable fail2ban
-sudo systemctl start fail2ban
+# Allow HTTP and HTTPS
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+
+# Allow PostgreSQL (only from application server)
+sudo ufw allow from <app-server-ip> to any port 5432
+
+# Check status
+sudo ufw status
 ```
 
-### 2. Configure Log Rotation
+### 2. SSL/TLS Configuration
+
+Using Let's Encrypt:
 
 ```bash
-# Create logrotate configuration
-sudo nano /etc/logrotate.d/admire-hrms
+# Install Certbot
+sudo apt install -y certbot python3-certbot-nginx
 
-# Add:
-/opt/admire-hrms/backend/logs/*.log {
-    daily
-    rotate 30
-    compress
-    delaycompress
-    notifempty
-    create 0640 root root
-    sharedscripts
-    postrotate
-        docker-compose -f /opt/admire-hrms/docker-compose.yml restart backend
-    endscript
-}
+# Obtain certificate
+sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
 
-/opt/admire-hrms/nginx/logs/*.log {
-    daily
-    rotate 30
-    compress
-    delaycompress
-    notifempty
-    create 0640 root root
-    sharedscripts
-    postrotate
-        docker-compose -f /opt/admire-hrms/docker-compose.yml restart nginx
-    endscript
-}
+# Auto-renewal
+sudo systemctl enable certbot.timer
 ```
 
-### 3. Set Up Monitoring Alerts
+### 3. Nginx Security Headers
 
-```bash
-# Update alertmanager configuration
-nano monitoring/alertmanager/alertmanager.yml
-
-# Add your email and Slack webhook
-ALERT_EMAIL_CRITICAL=critical@yourdomain.com
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
-```
-
-### 4. Performance Tuning
-
-**PostgreSQL Tuning**:
-
-```bash
-# Edit PostgreSQL configuration
-docker-compose exec db bash
-nano /var/lib/postgresql/data/postgresql.conf
-
-# Recommended settings for 16GB RAM:
-shared_buffers = 4GB
-effective_cache_size = 12GB
-maintenance_work_mem = 1GB
-checkpoint_completion_target = 0.9
-wal_buffers = 16MB
-default_statistics_target = 100
-random_page_cost = 1.1
-effective_io_concurrency = 200
-work_mem = 10MB
-min_wal_size = 1GB
-max_wal_size = 4GB
-max_worker_processes = 8
-max_parallel_workers_per_gather = 4
-max_parallel_workers = 8
-```
-
-**Nginx Tuning**:
+Add to Nginx configuration:
 
 ```nginx
-# Edit nginx.conf
-worker_processes auto;
-worker_connections 2048;
-keepalive_timeout 65;
-client_max_body_size 50M;
+# Security headers
+add_header X-Frame-Options "SAMEORIGIN" always;
+add_header X-Content-Type-Options "nosniff" always;
+add_header X-XSS-Protection "1; mode=block" always;
+add_header Referrer-Policy "no-referrer-when-downgrade" always;
+add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 'unsafe-inline'" always;
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
 ```
 
-## Monitoring Setup
+## Monitoring and Logging
 
-### 1. Deploy Monitoring Stack
+### 1. Application Logging
 
-```bash
-# Start monitoring services
-docker-compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+Configure log rotation in `/etc/logrotate.d/admire-hrms`:
 
-# Access Grafana
-# URL: http://yourdomain.com:3001
-# Default credentials: admin/admin (change immediately)
-
-# Access Prometheus
-# URL: http://yourdomain.com:9090
+```
+/var/log/admire-hrms/*.log {
+    daily
+    rotate 30
+    compress
+    delaycompress
+    notifempty
+    create 0640 admire www-data
+    sharedscripts
+    postrotate
+        systemctl reload admire-hrms
+    endscript
+}
 ```
 
-### 2. Configure Grafana Dashboards
+### 2. System Monitoring
 
-1. Log in to Grafana
-2. Add Prometheus data source
-3. Import pre-built dashboards:
-   - Node Exporter Dashboard (ID: 1860)
-   - Docker Dashboard (ID: 893)
-   - PostgreSQL Dashboard (ID: 9628)
-
-### 3. Set Up Alerts
-
-Configure alerts in `monitoring/prometheus/alerts.yml` and restart Prometheus:
+Install monitoring tools:
 
 ```bash
-docker-compose restart prometheus
+# Install Prometheus Node Exporter
+wget https://github.com/prometheus/node_exporter/releases/download/v1.5.0/node_exporter-1.5.0.linux-amd64.tar.gz
+tar xvfz node_exporter-1.5.0.linux-amd64.tar.gz
+sudo mv node_exporter-1.5.0.linux-amd64/node_exporter /usr/local/bin/
+sudo useradd -rs /bin/false node_exporter
+```
+
+Create systemd service for Node Exporter.
+
+### 3. Application Health Checks
+
+Set up health check endpoint monitoring:
+
+```bash
+# Add to crontab
+*/5 * * * * curl -f http://localhost:8000/api/v1/health/ || echo "Health check failed" | mail -s "HRMS Health Alert" admin@yourdomain.com
+```
+
+## Backup and Recovery
+
+### 1. Database Backup
+
+Create backup script `/home/admire/scripts/backup-db.sh`:
+
+```bash
+#!/bin/bash
+
+BACKUP_DIR="/backups/database"
+DATE=$(date +%Y%m%d_%H%M%S)
+FILENAME="admire_hrms_$DATE.sql.gz"
+
+# Create backup
+pg_dump -h localhost -U admire_user admire_hrms | gzip > "$BACKUP_DIR/$FILENAME"
+
+# Keep only last 30 days
+find $BACKUP_DIR -name "*.sql.gz" -mtime +30 -delete
+
+# Upload to S3 (optional)
+# aws s3 cp "$BACKUP_DIR/$FILENAME" s3://your-bucket/backups/
+```
+
+Add to crontab:
+
+```bash
+# Daily backup at 2 AM
+0 2 * * * /home/admire/scripts/backup-db.sh
+```
+
+### 2. Media Files Backup
+
+```bash
+#!/bin/bash
+
+MEDIA_DIR="/home/admire/admire-hrms/backend/media"
+BACKUP_DIR="/backups/media"
+DATE=$(date +%Y%m%d)
+
+# Create backup
+tar -czf "$BACKUP_DIR/media_$DATE.tar.gz" -C "$MEDIA_DIR" .
+
+# Keep only last 7 days
+find $BACKUP_DIR -name "media_*.tar.gz" -mtime +7 -delete
+```
+
+### 3. Recovery Procedure
+
+```bash
+# Restore database
+gunzip < backup_file.sql.gz | psql -h localhost -U admire_user admire_hrms
+
+# Restore media files
+tar -xzf media_backup.tar.gz -C /home/admire/admire-hrms/backend/media/
+
+# Restart services
+sudo systemctl restart admire-hrms
+sudo systemctl restart admire-hrms-ws
+sudo systemctl restart admire-hrms-celery
 ```
 
 ## Troubleshooting
 
-### Services Won't Start
+### Common Issues
 
+**Service won't start**:
 ```bash
+# Check service status
+sudo systemctl status admire-hrms
+
 # Check logs
-docker-compose logs backend
-docker-compose logs db
-docker-compose logs redis
+sudo journalctl -u admire-hrms -n 50
 
-# Check disk space
-df -h
+# Check application logs
+tail -f /var/log/admire-hrms/error.log
+```
 
-# Check memory
+**Database connection issues**:
+```bash
+# Test database connection
+psql -h localhost -U admire_user -d admire_hrms
+
+# Check PostgreSQL logs
+sudo tail -f /var/log/postgresql/postgresql-14-main.log
+```
+
+**WebSocket not connecting**:
+```bash
+# Check Daphne service
+sudo systemctl status admire-hrms-ws
+
+# Test WebSocket connection
+wscat -c ws://localhost:8001/ws/
+```
+
+**High memory usage**:
+```bash
+# Check memory usage
 free -h
+ps aux --sort=-%mem | head
 
-# Restart services
-docker-compose restart
+# Restart services if needed
+sudo systemctl restart admire-hrms
 ```
 
-### Database Connection Issues
+### Performance Tuning
 
+**Database query optimization**:
 ```bash
-# Check database is running
-docker-compose ps db
+# Enable query logging
+# Edit postgresql.conf
+log_min_duration_statement = 100
 
-# Check database logs
-docker-compose logs db
-
-# Test connection
-docker-compose exec backend python manage.py dbshell
-
-# Reset database (CAUTION: This will delete all data)
-docker-compose down -v
-docker-compose up -d
-docker-compose exec backend python manage.py migrate
+# Analyze slow queries
+sudo tail -f /var/log/postgresql/postgresql-14-main.log | grep "duration:"
 ```
 
-### Performance Issues
-
+**Redis optimization**:
 ```bash
-# Check resource usage
-docker stats
+# Check Redis memory usage
+redis-cli info memory
 
-# Check slow queries
-docker-compose exec db psql -U postgres -d admire_hrms -c "SELECT * FROM pg_stat_statements ORDER BY total_time DESC LIMIT 10;"
-
-# Clear cache
-docker-compose exec backend python manage.py shell
->>> from django.core.cache import cache
->>> cache.clear()
+# Set max memory
+redis-cli config set maxmemory 2gb
+redis-cli config set maxmemory-policy allkeys-lru
 ```
 
-### SSL Certificate Issues
+## Maintenance
 
-```bash
-# Renew Let's Encrypt certificate
-sudo certbot renew
+### Regular Tasks
 
-# Test certificate
-openssl s_client -connect yourdomain.com:443 -servername yourdomain.com
+**Weekly**:
+- Review application logs
+- Check disk space
+- Monitor database size
+- Review security logs
 
-# Restart Nginx
-docker-compose restart nginx
-```
+**Monthly**:
+- Update system packages
+- Review and optimize database
+- Test backup restoration
+- Security audit
 
-## Updating the Application
-
-### Rolling Update (Zero Downtime)
-
-```bash
-cd /opt/admire-hrms
-
-# Pull latest code
-git pull origin main
-
-# Build new images
-docker-compose build
-
-# Update services one by one
-docker-compose up -d --no-deps --build backend
-docker-compose up -d --no-deps --build frontend
-docker-compose up -d --no-deps --build nginx
-
-# Run migrations
-docker-compose exec backend python manage.py migrate
-
-# Collect static files
-docker-compose exec backend python manage.py collectstatic --noinput
-```
-
-### Using Deployment Script
-
-```bash
-# Use the automated deployment script
-sudo ./scripts/deploy.sh
-```
-
-## Scaling
-
-### Horizontal Scaling
-
-To scale services:
-
-```bash
-# Scale backend workers
-docker-compose up -d --scale backend=3
-
-# Scale Celery workers
-docker-compose up -d --scale celery_worker=4
-```
-
-### Load Balancer Configuration
-
-For multiple backend instances, update `nginx/nginx.conf`:
-
-```nginx
-upstream backend {
-    least_conn;
-    server backend_1:8000;
-    server backend_2:8000;
-    server backend_3:8000;
-}
-```
-
-## Support
-
-For issues or questions:
-- Documentation: https://docs.admire-hrms.com
-- Support Email: support@admire-hrms.com
-- GitHub Issues: https://github.com/your-org/admire-hrms/issues
+**Quarterly**:
+- Update application dependencies
+- Performance testing
+- Disaster recovery drill
+- Documentation review
 
 ---
 
-**Last Updated**: [Date]  
-**Version**: 1.0.0
+**Version**: 1.0.0  
+**Last Updated**: 2024  
+**Support**: devops@admire-hrms.com

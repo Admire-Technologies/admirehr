@@ -58,6 +58,8 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'apps.core.middleware.TenantMiddleware',
+    'apps.core.logging_config.RequestLoggingMiddleware',
+    'apps.core.error_handlers.ErrorHandlingMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -93,6 +95,27 @@ DATABASES = {
 
 # Redis configuration
 REDIS_URL = config('REDIS_URL', default='redis://localhost:6379/0')
+
+# Caching configuration
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': REDIS_URL,
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'CONNECTION_POOL_CLASS_KWARGS': {
+                'max_connections': 50,
+                'retry_on_timeout': True,
+            },
+            'SOCKET_CONNECT_TIMEOUT': 5,
+            'SOCKET_TIMEOUT': 5,
+            'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
+            'IGNORE_EXCEPTIONS': True,  # Don't fail if Redis is down
+        },
+        'KEY_PREFIX': 'admire_hrms',
+        'TIMEOUT': 300,  # Default timeout: 5 minutes
+    }
+}
 
 # Channels configuration
 CHANNEL_LAYERS = {
@@ -243,6 +266,7 @@ REST_FRAMEWORK = {
         'user': '1000/hour',
         'burst': '20/minute',
     },
+    'EXCEPTION_HANDLER': 'apps.core.error_handlers.custom_exception_handler',
 }
 
 # JWT configuration
